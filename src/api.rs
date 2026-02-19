@@ -145,7 +145,7 @@ pub extern "C" fn mwdg_remove(wdg: *mut mwdg_node) {
         let mut current = unsafe { state.head.as_mut() };
 
         while let Some(current_node) = current {
-            let current_ptr = current_node as *mut mwdg_node;
+            let current_ptr = core::ptr::from_mut(current_node);
 
             if current_ptr == wdg {
                 if prev.is_null() {
