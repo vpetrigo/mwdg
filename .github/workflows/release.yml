@@ -1,0 +1,66 @@
+name: "mwdg release"
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build:
+    name: Build for ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - thumbv6m-none-eabi
+          - thumbv7em-none-eabi
+          - thumbv7em-none-eabihf
+          - thumbv7m-none-eabi
+          - thumbv8m.base-none-eabi
+          - thumbv8m.main-none-eabi
+          - thumbv8m.main-none-eabihf
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+          targets: ${{ matrix.target }}
+      - name: Build static library
+        run: cargo rustc --release --target ${{ matrix.target }} --features "pack" -- --crate-type staticlib
+      - name: Rename artifact
+        run: cp target/${{ matrix.target }}/release/libmwdg.a libmwdg.${{ matrix.target }}.a
+      - name: Upload library artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: libmwdg.${{ matrix.target }}.a
+          path: libmwdg.${{ matrix.target }}.a
+      - name: Upload C header artifact
+        if: matrix.target == 'thumbv6m-none-eabi'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mwdg.h
+          path: include/mwdg.h
+
+  publish:
+    name: Publish release assets
+    runs-on: ubuntu-latest
+    needs: build
+    permissions:
+      contents: write
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect assets
+        run: |
+          mkdir -p release-assets
+          cp artifacts/mwdg.h/mwdg.h release-assets/
+          for dir in artifacts/libmwdg.*/; do
+            cp "$dir"/*.a release-assets/
+          done
+          ls -la release-assets/
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
