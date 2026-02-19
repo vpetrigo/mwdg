@@ -2,7 +2,7 @@
 //!
 //! A `no_std` software multi-watchdog library for embedded RTOS systems.
 //!
-//! Each RTOS task registers a [`SoftwareWdg`] with a timeout interval.
+//! Each RTOS task registers a [`mwdg_node`] with a timeout interval.
 //! The task periodically calls [`mwdg_feed`] to signal liveness.
 //! A central [`mwdg_check`] function verifies all registered watchdogs
 //! are healthy, enabling the main loop to gate hardware watchdog resets.
@@ -12,6 +12,15 @@
 //! All public functions use `#[unsafe(no_mangle)] extern "C"` and the struct uses
 //! `#[repr(C)]`, so the library can be linked from C/C++ code. Use the
 //! generated `include/mwdg.h` header.
+//!
+//! A user of the library must provide the following functions that the library uses
+//! to get system timestamp in milliseconds, enter/exit critical sections.
+//!
+//! ```c++
+//! extern uint32_t mwdg_get_time_milliseconds(void);
+//! extern void mwdg_enter_critical(void);
+//! extern void mwdg_exit_critical(void);
+//! ```
 #![no_std]
 
 use core::cell::UnsafeCell;
