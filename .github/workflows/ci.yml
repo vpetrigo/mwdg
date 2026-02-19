@@ -71,4 +71,4 @@ jobs:
         uses: coverallsapp/github-action@v2
         with:
           github-token: ${{ secrets.COVERALLS_TOKEN }}
-          files: build/coverage.info
+          files: lcov.info
