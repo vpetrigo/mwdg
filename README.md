@@ -1,3 +1,8 @@
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/vpetrigo/mwdg/ci.yml?logo=github)](https://github.com/vpetrigo/mwdg/actions/workflows/ci.yml)
+[![](https://img.shields.io/crates/v/mwdg)](https://crates.io/crates/mwdg)
+[![docs.rs](https://img.shields.io/badge/docs.rs-mwdg-66c2a5?logo=docs.rs&label=docs.rs)](https://docs.rs/mwdg)
+[![codecov](https://codecov.io/github/vpetrigo/mwdg/graph/badge.svg?token=7zad9eKKx7)](https://codecov.io/github/vpetrigo/mwdg)
+
 # mwdg - Micro-Watchdog Library
 
 A `no_std` software micro-watchdog library for embedded RTOS systems.
