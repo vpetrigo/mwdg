@@ -2,7 +2,7 @@
 name = "mwdg"
 version = "0.1.0"
 edition = "2024"
-description = "Software multi-watchdog library for embedded RTOS systems with C FFI"
+description = "Micro-watchdog library for embedded RTOS systems with C FFI"
 repository = "https://github.com/vpetrigo/mwdg"
 categories = ["no-std", "embedded"]
 keywords = ["watchdog", "wdg", "wdt", "watchdog timer"]
