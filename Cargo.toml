@@ -5,9 +5,6 @@ edition = "2024"
 description = "Software multi-watchdog library for embedded RTOS systems with C FFI"
 license = "MIT"
 
-[lib]
-test = false
-
 [features]
 pack = []
 
