@@ -134,6 +134,7 @@ pub extern "C" fn mwdg_add(wdg: *mut mwdg_node, timeout_ms: u32) {
 ///
 /// The function only checks for `null` and membership in the internal list;
 /// it does not otherwise validate the memory referenced by `wdg`.
+#[unsafe(no_mangle)]
 pub extern "C" fn mwdg_remove(wdg: *mut mwdg_node) {
     with_critical_section(|state| {
         if wdg.is_null() {
