@@ -1,0 +1,17 @@
+[package]
+name = "mwdg"
+version = "0.1.0"
+edition = "2024"
+description = "Software multi-watchdog library for embedded RTOS systems with C FFI"
+license = "MIT"
+
+[lib]
+test = false
+
+[features]
+pack = []
+
+[dependencies]
+
+[build-dependencies]
+cbindgen = "~0.29"
