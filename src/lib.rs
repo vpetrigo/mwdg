@@ -90,3 +90,134 @@ impl GlobalState {
         self.as_mut()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use core::ptr;
+    use core::sync::atomic::{AtomicU32, Ordering};
+
+    use super::*;
+
+    static MOCK_TIME: AtomicU32 = AtomicU32::new(0);
+
+    fn mock_get_time_ms() -> u32 {
+        MOCK_TIME.load(Ordering::Relaxed)
+    }
+
+    fn mock_enter_critical() {
+        // no-op for single-threaded tests
+    }
+
+    fn mock_exit_critical() {
+        // no-op for single-threaded tests
+    }
+
+    /// User-provided function that returns the current time in milliseconds.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn mwdg_get_time_milliseconds() -> u32 {
+        mock_get_time_ms()
+    }
+    /// User-provided function to enter a critical section.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn mwdg_enter_critical() {
+        mock_enter_critical();
+    }
+    /// User-provided function to exit a critical section.
+    #[unsafe(no_mangle)]
+    pub extern "C" fn mwdg_exit_critical() {
+        mock_exit_critical();
+    }
+
+    fn set_time(ms: u32) {
+        MOCK_TIME.store(ms, Ordering::Relaxed);
+    }
+
+    /// Reset global state between tests (since tests share the static).
+    fn reset() {
+        set_time(0);
+        mwdg_init();
+    }
+
+    /// Helper to create a zeroed SoftwareWdg.
+    fn new_wdg() -> mwdg_node {
+        mwdg_node {
+            timeout_interval_ms: 0,
+            last_touched_timestamp_ms: 0,
+            next: ptr::null_mut(),
+        }
+    }
+
+    fn count_nodes_in_list(head: *const mwdg_node) -> u32 {
+        let mut counter = 0u32;
+        let mut current = head;
+
+        while !current.is_null() {
+            counter += 1;
+            current = unsafe { current.as_ref() }.unwrap().next;
+        }
+
+        counter
+    }
+
+    #[test]
+    fn test_internal_state_single_node_add() {
+        reset();
+        let mut wdg = new_wdg();
+        mwdg_add(&mut wdg, 1);
+        let counter = count_nodes_in_list(STATE.as_ref().head);
+        assert_eq!(1, counter, "Invalid number of nodes");
+    }
+
+    #[test]
+    fn test_internal_state_multiple_nodes_add() {
+        reset();
+
+        let mut wdg1 = new_wdg();
+        let mut wdg2 = new_wdg();
+        let mut wdg3 = new_wdg();
+
+        mwdg_add(&mut wdg1, 1);
+        mwdg_add(&mut wdg2, 2);
+        mwdg_add(&mut wdg3, 3);
+
+        let counter = count_nodes_in_list(STATE.as_ref().head);
+        assert_eq!(3, counter, "Invalid number of nodes");
+    }
+
+    #[test]
+    fn test_internal_state_multiple_nodes_add_multiple_remove() {
+        reset();
+
+        let mut wdg1 = new_wdg();
+        let mut wdg2 = new_wdg();
+        let mut wdg3 = new_wdg();
+
+        mwdg_add(&mut wdg1, 1);
+        mwdg_add(&mut wdg2, 2);
+        mwdg_add(&mut wdg3, 3);
+
+        let counter = count_nodes_in_list(STATE.as_ref().head);
+        assert_eq!(3, counter, "Invalid number of nodes");
+
+        mwdg_remove(&mut wdg3);
+        mwdg_remove(&mut wdg3);
+        mwdg_remove(&mut wdg3);
+
+        let counter = count_nodes_in_list(STATE.as_ref().head);
+        assert_eq!(2, counter, "Invalid number of nodes");
+
+        mwdg_remove(&mut wdg1);
+        mwdg_remove(&mut wdg1);
+        mwdg_remove(&mut wdg1);
+
+        let counter = count_nodes_in_list(STATE.as_ref().head);
+        assert_eq!(1, counter, "Invalid number of nodes");
+
+        mwdg_remove(&mut wdg2);
+        mwdg_remove(&mut wdg2);
+        mwdg_remove(&mut wdg2);
+
+        let counter = count_nodes_in_list(STATE.as_ref().head);
+        assert_eq!(0, counter, "Invalid number of nodes");
+    }
+}
