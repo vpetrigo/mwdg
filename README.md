@@ -8,9 +8,9 @@ are healthy, enabling the main loop to gate hardware watchdog resets.
 
 # C FFI
 
-All public functions use `#[unsafe(no_mangle)] extern "C"` and the struct uses
-`#[repr(C)]`, so the library can be linked from C/C++ code. Use the
-generated `include/mwdg.h` header.
+All public functions declared to be exposed without mangling, so the library can be
+linked from C/C++ code. Use the generated `include/mwdg.h` header for having proper
+interface declaration.
 
 # Usage
 
@@ -21,7 +21,7 @@ To use in Rust projects:
 mwdg = "0.1"
 ```
 
-To use in C/C++ projects, see info below:
+To use in C/C++ projects, see info below.
 
 ## Build static library
 
