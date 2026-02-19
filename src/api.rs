@@ -215,17 +215,15 @@ pub extern "C" fn mwdg_check() -> i32 {
         let now = unsafe { mwdg_get_time_milliseconds() };
         let mut current = state.head;
 
-        while !current.is_null() {
-            if let Some(wdg) = unsafe { current.as_mut() } {
-                let elapsed = now.wrapping_sub(wdg.last_touched_timestamp_ms);
+        while let Some(node) = unsafe { current.as_mut() } {
+            let elapsed = now.wrapping_sub(node.last_touched_timestamp_ms);
 
-                if elapsed > wdg.timeout_interval_ms {
-                    state.expired = true;
-                    return 1;
-                }
-
-                current = wdg.next;
+            if elapsed > node.timeout_interval_ms {
+                state.expired = true;
+                return 1;
             }
+
+            current = node.next;
         }
 
         0
