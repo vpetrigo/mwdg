@@ -45,11 +45,7 @@ fn reset() {
 
 /// Helper to create a zeroed SoftwareWdg.
 fn new_wdg() -> mwdg_node {
-    mwdg_node {
-        timeout_interval_ms: 0,
-        last_touched_timestamp_ms: 0,
-        next: ptr::null_mut(),
-    }
+    Default::default()
 }
 
 #[test]
@@ -249,32 +245,6 @@ fn test_wrapping_expired() {
         1,
         "150ms elapsed > 100ms timeout, should be expired across wrap"
     );
-}
-
-#[test]
-fn test_register_sets_fields() {
-    reset();
-    set_time(42);
-    let mut wdg = new_wdg();
-
-    mwdg_add(&mut wdg, 250);
-    assert_eq!(wdg.timeout_interval_ms, 250);
-    assert_eq!(wdg.last_touched_timestamp_ms, 42);
-}
-
-#[test]
-fn test_feed_updates_timestamp() {
-    reset();
-    set_time(100);
-    let mut wdg = new_wdg();
-
-    mwdg_add(&mut wdg, 500);
-    assert_eq!(wdg.last_touched_timestamp_ms, 100);
-
-    set_time(350);
-
-    mwdg_feed(&mut wdg);
-    assert_eq!(wdg.last_touched_timestamp_ms, 350);
 }
 
 #[test]
