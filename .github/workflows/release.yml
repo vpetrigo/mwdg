@@ -46,7 +46,7 @@ jobs:
         if: matrix.target == 'thumbv6m-none-eabi'
         uses: actions/upload-artifact@v4
         with:
-          name: include/mwdg.h
+          name: include
           path: include/mwdg.h
 
   publish:
