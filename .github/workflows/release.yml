@@ -34,13 +34,10 @@ jobs:
       - name: Build static library
         run: cargo rustc --release --target ${{ matrix.target }} --features "pack" -- --crate-type staticlib
       - name: Rename artifact
-        run: cp target/${{ matrix.target }}/release/libmwdg.rlib libmwdg.a
-      - name: Prepare SDK fragment
         run: |
           mkdir -p lib/${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/libmwdg.a lib/${{ matrix.target }}/
-
-      - name: Upload SDK fragment
+          cp target/${{ matrix.target }}/release/libmwdg.rlib lib/${{ matrix.target }}/libmwdg.a
+      - name: Upload artifact fragment
         uses: actions/upload-artifact@v4
         with:
           name: lib-${{ matrix.target }}
