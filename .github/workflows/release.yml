@@ -36,7 +36,7 @@ jobs:
       - name: Rename artifact
         run: |
           mkdir -p lib/${{ matrix.target }}
-          cp target/${{ matrix.target }}/release/libmwdg.rlib lib/libmwdg.a
+          cp target/${{ matrix.target }}/release/libmwdg.rlib lib/${{ matrix.target }}/libmwdg.a
       - name: Upload artifact fragment
         uses: actions/upload-artifact@v4
         with:
@@ -77,7 +77,7 @@ jobs:
 
           # copy all architecture libraries
           for dir in artifacts/lib-*; do
-            cp -r $dir/lib/* $SDK/lib/
+            cp -r $dir/* $SDK/lib/
           done
 
           # version file
