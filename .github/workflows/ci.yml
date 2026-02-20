@@ -73,3 +73,31 @@ jobs:
         with:
           github-token: ${{ secrets.COVERALLS_TOKEN }}
           files: lcov.info
+
+  build-rust-example:
+    name: Build Rust example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Build Rust example
+        run: cargo build --examples
+
+  build-c-example:
+    name: Build C example
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: stable
+      - name: Build static library
+        run: |
+          cargo rustc --release -- --crate-type staticlib -Cpanic=abort
+          cp target/release/libmwdg.rlib target/release/libmwdg.a
+      - name: Build C example
+        run: gcc -o simple examples/simple.c -Iinclude -Ltarget/release -lmwdg -lpthread
+      - name: Run C example
+        run: ./simple
