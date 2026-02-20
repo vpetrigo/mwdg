@@ -55,14 +55,24 @@ fn panic(_info: &PanicInfo) -> ! {
 pub struct mwdg_node {
     /// Timeout interval in milliseconds. Set during [`mwdg_add`].
     /// Treat as read-only after registration.
-    pub timeout_interval_ms: u32,
+    timeout_interval_ms: u32,
 
     /// Timestamp (ms) of the last feed. Updated by [`mwdg_feed`].
-    pub last_touched_timestamp_ms: u32,
+    last_touched_timestamp_ms: u32,
 
     /// Intrusive linked-list pointer to the next registered watchdog.
     /// Null if this is the tail of the list.
-    pub next: *mut mwdg_node,
+    next: *mut mwdg_node,
+}
+
+impl Default for mwdg_node {
+    fn default() -> Self {
+        Self {
+            timeout_interval_ms: 0,
+            last_touched_timestamp_ms: 0,
+            next: ptr::null_mut(),
+        }
+    }
 }
 
 /// All mutable global state for the library, collected in one place.
@@ -102,7 +112,6 @@ impl GlobalState {
 
 #[cfg(test)]
 mod tests {
-    use core::ptr;
     use core::sync::atomic::{AtomicU32, Ordering};
 
     use super::*;
@@ -147,15 +156,6 @@ mod tests {
         mwdg_init();
     }
 
-    /// Helper to create a zeroed SoftwareWdg.
-    fn new_wdg() -> mwdg_node {
-        mwdg_node {
-            timeout_interval_ms: 0,
-            last_touched_timestamp_ms: 0,
-            next: ptr::null_mut(),
-        }
-    }
-
     fn count_nodes_in_list(head: *const mwdg_node) -> u32 {
         let mut counter = 0u32;
         let mut current = head;
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn test_internal_state_single_node_add() {
         reset();
-        let mut wdg = new_wdg();
+        let mut wdg = mwdg_node::default();
         mwdg_add(&mut wdg, 1);
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(1, counter, "Invalid number of nodes");
@@ -181,9 +181,9 @@ mod tests {
     fn test_internal_state_multiple_nodes_add() {
         reset();
 
-        let mut wdg1 = new_wdg();
-        let mut wdg2 = new_wdg();
-        let mut wdg3 = new_wdg();
+        let mut wdg1 = mwdg_node::default();
+        let mut wdg2 = mwdg_node::default();
+        let mut wdg3 = mwdg_node::default();
 
         mwdg_add(&mut wdg1, 1);
         mwdg_add(&mut wdg2, 2);
@@ -197,9 +197,9 @@ mod tests {
     fn test_internal_state_multiple_nodes_add_multiple_remove() {
         reset();
 
-        let mut wdg1 = new_wdg();
-        let mut wdg2 = new_wdg();
-        let mut wdg3 = new_wdg();
+        let mut wdg1 = mwdg_node::default();
+        let mut wdg2 = mwdg_node::default();
+        let mut wdg3 = mwdg_node::default();
 
         mwdg_add(&mut wdg1, 1);
         mwdg_add(&mut wdg2, 2);
@@ -228,5 +228,31 @@ mod tests {
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(0, counter, "Invalid number of nodes");
+    }
+
+    #[test]
+    fn test_register_sets_fields() {
+        reset();
+        set_time(42);
+        let mut wdg = mwdg_node::default();
+
+        mwdg_add(&mut wdg, 250);
+        assert_eq!(wdg.timeout_interval_ms, 250);
+        assert_eq!(wdg.last_touched_timestamp_ms, 42);
+    }
+
+    #[test]
+    fn test_feed_updates_timestamp() {
+        reset();
+        set_time(100);
+        let mut wdg = mwdg_node::default();
+
+        mwdg_add(&mut wdg, 500);
+        assert_eq!(wdg.last_touched_timestamp_ms, 100);
+
+        set_time(350);
+
+        mwdg_feed(&mut wdg);
+        assert_eq!(wdg.last_touched_timestamp_ms, 350);
     }
 }
