@@ -34,17 +34,22 @@ jobs:
       - name: Build static library
         run: cargo rustc --release --target ${{ matrix.target }} --features "pack" -- --crate-type staticlib
       - name: Rename artifact
-        run: cp target/${{ matrix.target }}/release/libmwdg.rlib libmwdg.${{ matrix.target }}.a
-      - name: Upload library artifact
+        run: cp target/${{ matrix.target }}/release/libmwdg.rlib libmwdg.a
+      - name: Prepare SDK fragment
+        run: |
+          mkdir -p lib/${{ matrix.target }}
+          cp target/${{ matrix.target }}/release/libmwdg.a lib/${{ matrix.target }}/
+
+      - name: Upload SDK fragment
         uses: actions/upload-artifact@v4
         with:
-          name: libmwdg.${{ matrix.target }}.a
-          path: libmwdg.${{ matrix.target }}.a
+          name: lib-${{ matrix.target }}
+          path: lib
       - name: Upload C header artifact
         if: matrix.target == 'thumbv6m-none-eabi'
         uses: actions/upload-artifact@v4
         with:
-          name: mwdg.h
+          name: include/mwdg.h
           path: include/mwdg.h
 
   publish:
@@ -58,15 +63,37 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           path: artifacts
+      - name: Extract version
+        id: version
+        run: echo "VERSION=${GITHUB_REF_NAME#v}" >> $GITHUB_OUTPUT
       - name: Collect assets
         run: |
-          mkdir -p release-assets
-          cp artifacts/mwdg.h/mwdg.h release-assets/
-          for dir in artifacts/libmwdg.*/; do
-            cp "$dir"/*.a release-assets/
+          VERSION=${{ steps.version.outputs.VERSION }}
+          SDK=mwdg-$VERSION
+
+          mkdir -p $SDK
+          mkdir -p $SDK/include
+          mkdir -p $SDK/lib
+
+          # copy header
+          cp artifacts/include/mwdg.h $SDK/include/
+
+          # copy all architecture libraries
+          for dir in artifacts/lib-*; do
+            cp -r $dir/lib/* $SDK/lib/
           done
-          ls -la release-assets/
+
+          # version file
+          echo $VERSION > $SDK/VERSION
+
+          ls -la $SDK
+          ls -la $SDK/include
+          ls -la $SDK/lib
+      - name: Pack SDK
+        run: |
+          VERSION=${{ steps.version.outputs.VERSION }}
+          tar -cJf mwdg-$VERSION.tar.xz mwdg-$VERSION
       - name: Upload assets to GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: release-assets/*
+          files: mwdg-${{ steps.version.outputs.VERSION }}.tar.xz
