@@ -88,6 +88,11 @@ struct MwdgState {
     head: *mut mwdg_node,
     /// Whether any of registered WDGs is expired
     expired: bool,
+    /// Timestamp (ms) captured by [`mwdg_check`] at the moment it first
+    /// detected an expiration.  [`mwdg_get_next_expired`] uses this snapshot
+    /// instead of reading the clock again, so the two functions evaluate
+    /// against the same point in time.
+    expired_at_ms: u32,
 }
 
 /// Wrapper to allow `MwdgState` in a `static`.
@@ -104,6 +109,7 @@ unsafe impl Sync for GlobalState {}
 static STATE: GlobalState = GlobalState(UnsafeCell::new(MwdgState {
     head: ptr::null_mut(),
     expired: false,
+    expired_at_ms: 0,
 }));
 
 impl GlobalState {
@@ -343,6 +349,38 @@ mod tests {
             mwdg_feed(&mut wdg);
         }
         assert_eq!(wdg.id, 13, "mwdg_feed must not overwrite the id field");
+    }
+
+    #[test]
+    fn test_expired_at_ms_set_on_check() {
+        reset();
+        set_time(0);
+        let mut wdg = mwdg_node::default();
+        unsafe {
+            mwdg_add(&mut wdg, 100);
+        }
+
+        // Before expiration, expired_at_ms should still be 0
+        assert_eq!(STATE.as_ref().expired_at_ms, 0);
+
+        set_time(200);
+        let result = unsafe { mwdg_check() };
+        assert_eq!(result, 1, "Should detect expiration");
+        assert_eq!(
+            STATE.as_ref().expired_at_ms,
+            200,
+            "expired_at_ms must be set to the mock time when expiration was detected"
+        );
+
+        // A subsequent mwdg_check should not change expired_at_ms (early return)
+        set_time(300);
+        let result = unsafe { mwdg_check() };
+        assert_eq!(result, 1);
+        assert_eq!(
+            STATE.as_ref().expired_at_ms,
+            200,
+            "expired_at_ms must remain at the first detection time"
+        );
     }
 
     #[test]

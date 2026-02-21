@@ -70,6 +70,7 @@ pub unsafe extern "C" fn mwdg_init() {
     let state = STATE.as_mut();
     state.head = ptr::null_mut();
     state.expired = false;
+    state.expired_at_ms = 0;
 }
 
 /// Register a software watchdog with the given timeout.
@@ -269,6 +270,7 @@ pub unsafe extern "C" fn mwdg_check() -> i32 {
 
             if elapsed > node.timeout_interval_ms {
                 state.expired = true;
+                state.expired_at_ms = now;
                 return 1;
             }
 
@@ -286,12 +288,23 @@ pub unsafe extern "C" fn mwdg_check() -> i32 {
 /// `*cursor` and scans forward for the next node whose elapsed time exceeds
 /// its timeout interval.
 ///
+/// # Precondition
+/// [`mwdg_check`] must have been called **and returned `1`** before using
+/// this function.  Internally the iterator uses the timestamp snapshot
+/// captured by `mwdg_check` (`expired_at_ms`) to evaluate each node, so
+/// nodes are compared against the same point in time that triggered the
+/// expiration — even if a frozen task calls [`mwdg_feed`] between
+/// `mwdg_check` and this function.  If `mwdg_check` has not yet detected
+/// an expiration the function returns `0` immediately.
+///
 /// # Usage (C)
 /// ```c
-/// struct mwdg_node *cursor = NULL;
-/// uint32_t id;
-/// while (mwdg_get_next_expired(&cursor, &id)) {
-///     printf("expired watchdog id: %u\n", id);
+/// if (mwdg_check() != 0) {
+///     struct mwdg_node *cursor = NULL;
+///     uint32_t id;
+///     while (mwdg_get_next_expired(&cursor, &id)) {
+///         printf("expired watchdog id: %u\n", id);
+///     }
 /// }
 /// ```
 ///
@@ -305,8 +318,9 @@ pub unsafe extern "C" fn mwdg_check() -> i32 {
 /// # Returns
 /// - `1` if an expired node was found (`*out_id` is written, `*cursor` is
 ///   advanced).
-/// - `0` when no more expired nodes remain (iteration complete), or if
-///   `cursor` or `out_id` is null.
+/// - `0` when no more expired nodes remain (iteration complete), when
+///   [`mwdg_check`] has not detected an expiration, or if `cursor` or
+///   `out_id` is null.
 ///
 /// # Note
 /// Each call enters and exits the critical section independently. If the
@@ -329,7 +343,16 @@ pub unsafe extern "C" fn mwdg_get_next_expired(
     };
 
     with_critical_section(|state| {
-        let now = unsafe { mwdg_get_time_milliseconds() };
+        // Nothing to report if mwdg_check has not detected an expiration.
+        if !state.expired {
+            return 0;
+        }
+
+        // Use the timestamp captured by mwdg_check rather than reading the
+        // clock again.  This ensures nodes are evaluated against the same
+        // point in time that triggered the expiration, even if a task has
+        // called mwdg_feed in the meantime.
+        let now = state.expired_at_ms;
 
         // Determine start position: if *cursor is NULL we start from
         // the head of the list; otherwise from the node after *cursor.
