@@ -349,7 +349,7 @@ pub unsafe extern "C" fn mwdg_get_next_expired(
         }
 
         // Use the timestamp captured by mwdg_check rather than reading the
-        // clock again.  This ensures nodes are evaluated against the same
+        // clock again. This ensures nodes are evaluated against the same
         // point in time that triggered the expiration, even if a task has
         // called mwdg_feed in the meantime.
         let now = state.expired_at_ms;
