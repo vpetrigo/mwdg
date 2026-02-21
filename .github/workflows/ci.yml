@@ -97,7 +97,12 @@ jobs:
         run: |
           cargo rustc --release --features "pack" -- --crate-type staticlib -Cpanic=abort
           cp target/release/libmwdg.rlib target/release/libmwdg.a
+      - name: Locate generated header
+        id: header
+        run: |
+          HEADER_DIR=$(dirname "$(find target/release/build -name mwdg.h -path '*/include/*')")
+          echo "INCLUDE_DIR=$HEADER_DIR" >> $GITHUB_OUTPUT
       - name: Build C example
-        run: gcc -o simple examples/simple.c -Iinclude -Ltarget/release -lmwdg -lpthread
+        run: gcc -o simple examples/simple.c -I${{ steps.header.outputs.INCLUDE_DIR }} -Ltarget/release -lmwdg -lpthread
       - name: Run C example
         run: ./simple

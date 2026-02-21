@@ -42,12 +42,18 @@ jobs:
         with:
           name: lib-${{ matrix.target }}
           path: lib
+      - name: Locate generated header
+        if: matrix.target == 'thumbv6m-none-eabi'
+        id: header
+        run: |
+          HEADER=$(find target/${{ matrix.target }}/release/build -name mwdg.h -path '*/include/*')
+          echo "HEADER_PATH=$HEADER" >> $GITHUB_OUTPUT
       - name: Upload C header artifact
         if: matrix.target == 'thumbv6m-none-eabi'
         uses: actions/upload-artifact@v4
         with:
           name: include
-          path: include/mwdg.h
+          path: ${{ steps.header.outputs.HEADER_PATH }}
 
   publish:
     name: Publish release assets
