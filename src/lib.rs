@@ -9,9 +9,9 @@
 //!
 //! ## C FFI
 //!
-//! All public functions use `#[unsafe(no_mangle)] extern "C"` and the struct uses
-//! `#[repr(C)]`, so the library can be linked from C/C++ code. Use the
-//! generated `include/mwdg.h` header.
+//! All public functions declared to be exposed without mangling, so the library can be
+//! linked from C/C++ code. Use the generated `include/mwdg.h` header for having proper
+//! interface declaration.
 //!
 //! A user of the library must provide the following functions that the library uses
 //! to get system timestamp in milliseconds, enter/exit critical sections.
@@ -202,7 +202,13 @@ mod tests {
         let mut wdg3 = mwdg_node::default();
 
         mwdg_add(&mut wdg1, 1);
+        mwdg_add(&mut wdg1, 1);
+        mwdg_add(&mut wdg1, 1);
         mwdg_add(&mut wdg2, 2);
+        mwdg_add(&mut wdg2, 2);
+        mwdg_add(&mut wdg2, 2);
+        mwdg_add(&mut wdg3, 3);
+        mwdg_add(&mut wdg3, 3);
         mwdg_add(&mut wdg3, 3);
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
