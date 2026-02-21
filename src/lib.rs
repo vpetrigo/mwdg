@@ -160,7 +160,9 @@ mod tests {
     /// Reset global state between tests (since tests share the static).
     fn reset() {
         set_time(0);
-        mwdg_init();
+        unsafe {
+            mwdg_init();
+        }
     }
 
     fn count_nodes_in_list(head: *const mwdg_node) -> u32 {
@@ -179,7 +181,9 @@ mod tests {
     fn test_internal_state_single_node_add() {
         reset();
         let mut wdg = mwdg_node::default();
-        mwdg_add(&mut wdg, 1);
+        unsafe {
+            mwdg_add(&mut wdg, 1);
+        }
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(1, counter, "Invalid number of nodes");
     }
@@ -192,9 +196,15 @@ mod tests {
         let mut wdg2 = mwdg_node::default();
         let mut wdg3 = mwdg_node::default();
 
-        mwdg_add(&mut wdg1, 1);
-        mwdg_add(&mut wdg2, 2);
-        mwdg_add(&mut wdg3, 3);
+        unsafe {
+            mwdg_add(&mut wdg1, 1);
+        }
+        unsafe {
+            mwdg_add(&mut wdg2, 2);
+        }
+        unsafe {
+            mwdg_add(&mut wdg3, 3);
+        }
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(3, counter, "Invalid number of nodes");
@@ -208,36 +218,44 @@ mod tests {
         let mut wdg2 = mwdg_node::default();
         let mut wdg3 = mwdg_node::default();
 
-        mwdg_add(&mut wdg1, 1);
-        mwdg_add(&mut wdg1, 1);
-        mwdg_add(&mut wdg1, 1);
-        mwdg_add(&mut wdg2, 2);
-        mwdg_add(&mut wdg2, 2);
-        mwdg_add(&mut wdg2, 2);
-        mwdg_add(&mut wdg3, 3);
-        mwdg_add(&mut wdg3, 3);
-        mwdg_add(&mut wdg3, 3);
+        unsafe {
+            mwdg_add(&mut wdg1, 1);
+            mwdg_add(&mut wdg1, 1);
+            mwdg_add(&mut wdg1, 1);
+            mwdg_add(&mut wdg2, 2);
+            mwdg_add(&mut wdg2, 2);
+            mwdg_add(&mut wdg2, 2);
+            mwdg_add(&mut wdg3, 3);
+            mwdg_add(&mut wdg3, 3);
+            mwdg_add(&mut wdg3, 3);
+        }
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(3, counter, "Invalid number of nodes");
 
-        mwdg_remove(&mut wdg3);
-        mwdg_remove(&mut wdg3);
-        mwdg_remove(&mut wdg3);
+        unsafe {
+            mwdg_remove(&mut wdg3);
+            mwdg_remove(&mut wdg3);
+            mwdg_remove(&mut wdg3);
+        }
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(2, counter, "Invalid number of nodes");
 
-        mwdg_remove(&mut wdg1);
-        mwdg_remove(&mut wdg1);
-        mwdg_remove(&mut wdg1);
+        unsafe {
+            mwdg_remove(&mut wdg1);
+            mwdg_remove(&mut wdg1);
+            mwdg_remove(&mut wdg1);
+        }
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(1, counter, "Invalid number of nodes");
 
-        mwdg_remove(&mut wdg2);
-        mwdg_remove(&mut wdg2);
-        mwdg_remove(&mut wdg2);
+        unsafe {
+            mwdg_remove(&mut wdg2);
+            mwdg_remove(&mut wdg2);
+            mwdg_remove(&mut wdg2);
+        }
 
         let counter = count_nodes_in_list(STATE.as_ref().head);
         assert_eq!(0, counter, "Invalid number of nodes");
@@ -249,7 +267,9 @@ mod tests {
         set_time(42);
         let mut wdg = mwdg_node::default();
 
-        mwdg_add(&mut wdg, 250);
+        unsafe {
+            mwdg_add(&mut wdg, 250);
+        }
         assert_eq!(wdg.timeout_interval_ms, 250);
         assert_eq!(wdg.last_touched_timestamp_ms, 42);
         // id must not be modified by mwdg_add
@@ -262,12 +282,16 @@ mod tests {
         set_time(100);
         let mut wdg = mwdg_node::default();
 
-        mwdg_add(&mut wdg, 500);
+        unsafe {
+            mwdg_add(&mut wdg, 500);
+        }
         assert_eq!(wdg.last_touched_timestamp_ms, 100);
 
         set_time(350);
 
-        mwdg_feed(&mut wdg);
+        unsafe {
+            mwdg_feed(&mut wdg);
+        }
         assert_eq!(wdg.last_touched_timestamp_ms, 350);
     }
 
@@ -277,7 +301,9 @@ mod tests {
         let mut wdg = mwdg_node::default();
         assert_eq!(wdg.id, 0, "Default id should be 0");
 
-        mwdg_assign_id(&mut wdg, 42);
+        unsafe {
+            mwdg_assign_id(&mut wdg, 42);
+        }
         assert_eq!(wdg.id, 42, "mwdg_assign_id should set the id field");
     }
 
@@ -285,7 +311,9 @@ mod tests {
     fn test_assign_id_null_safe() {
         reset();
         // Must not crash when called with null
-        mwdg_assign_id(ptr::null_mut(), 99);
+        unsafe {
+            mwdg_assign_id(ptr::null_mut(), 99);
+        }
     }
 
     #[test]
@@ -293,8 +321,11 @@ mod tests {
         reset();
         set_time(0);
         let mut wdg = mwdg_node::default();
-        mwdg_assign_id(&mut wdg, 7);
-        mwdg_add(&mut wdg, 100);
+
+        unsafe {
+            mwdg_assign_id(&mut wdg, 7);
+            mwdg_add(&mut wdg, 100);
+        }
         assert_eq!(wdg.id, 7, "mwdg_add must not overwrite a pre-set id");
     }
 
@@ -303,10 +334,14 @@ mod tests {
         reset();
         set_time(0);
         let mut wdg = mwdg_node::default();
-        mwdg_assign_id(&mut wdg, 13);
-        mwdg_add(&mut wdg, 100);
+        unsafe {
+            mwdg_assign_id(&mut wdg, 13);
+            mwdg_add(&mut wdg, 100);
+        }
         set_time(50);
-        mwdg_feed(&mut wdg);
+        unsafe {
+            mwdg_feed(&mut wdg);
+        }
         assert_eq!(wdg.id, 13, "mwdg_feed must not overwrite the id field");
     }
 
@@ -315,11 +350,15 @@ mod tests {
         reset();
         set_time(0);
         let mut wdg = mwdg_node::default();
-        mwdg_assign_id(&mut wdg, 21);
-        mwdg_add(&mut wdg, 100);
+        unsafe {
+            mwdg_assign_id(&mut wdg, 21);
+            mwdg_add(&mut wdg, 100);
+        }
         set_time(50);
         // Re-add the same node (acts as feed + timeout update)
-        mwdg_add(&mut wdg, 200);
+        unsafe {
+            mwdg_add(&mut wdg, 200);
+        }
         assert_eq!(wdg.id, 21, "Re-adding must not overwrite the id field");
     }
 }
