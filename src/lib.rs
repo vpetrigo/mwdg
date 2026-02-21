@@ -60,6 +60,12 @@ pub struct mwdg_node {
     /// Timestamp (ms) of the last feed. Updated by [`mwdg_feed`].
     last_touched_timestamp_ms: u32,
 
+    /// User-assigned identifier for this watchdog node.
+    /// Set via [`mwdg_assign_id`]. Defaults to `0`.
+    /// The library never modifies this field; it is purely for the user's
+    /// benefit when identifying expired nodes via [`mwdg_get_next_expired`].
+    id: u32,
+
     /// Intrusive linked-list pointer to the next registered watchdog.
     /// Null if this is the tail of the list.
     next: *mut mwdg_node,
@@ -70,6 +76,7 @@ impl Default for mwdg_node {
         Self {
             timeout_interval_ms: 0,
             last_touched_timestamp_ms: 0,
+            id: 0,
             next: ptr::null_mut(),
         }
     }
@@ -245,6 +252,8 @@ mod tests {
         mwdg_add(&mut wdg, 250);
         assert_eq!(wdg.timeout_interval_ms, 250);
         assert_eq!(wdg.last_touched_timestamp_ms, 42);
+        // id must not be modified by mwdg_add
+        assert_eq!(wdg.id, 0, "mwdg_add must not overwrite the id field");
     }
 
     #[test]
@@ -260,5 +269,57 @@ mod tests {
 
         mwdg_feed(&mut wdg);
         assert_eq!(wdg.last_touched_timestamp_ms, 350);
+    }
+
+    #[test]
+    fn test_assign_id_sets_field() {
+        reset();
+        let mut wdg = mwdg_node::default();
+        assert_eq!(wdg.id, 0, "Default id should be 0");
+
+        mwdg_assign_id(&mut wdg, 42);
+        assert_eq!(wdg.id, 42, "mwdg_assign_id should set the id field");
+    }
+
+    #[test]
+    fn test_assign_id_null_safe() {
+        reset();
+        // Must not crash when called with null
+        mwdg_assign_id(ptr::null_mut(), 99);
+    }
+
+    #[test]
+    fn test_add_preserves_user_id() {
+        reset();
+        set_time(0);
+        let mut wdg = mwdg_node::default();
+        mwdg_assign_id(&mut wdg, 7);
+        mwdg_add(&mut wdg, 100);
+        assert_eq!(wdg.id, 7, "mwdg_add must not overwrite a pre-set id");
+    }
+
+    #[test]
+    fn test_feed_preserves_user_id() {
+        reset();
+        set_time(0);
+        let mut wdg = mwdg_node::default();
+        mwdg_assign_id(&mut wdg, 13);
+        mwdg_add(&mut wdg, 100);
+        set_time(50);
+        mwdg_feed(&mut wdg);
+        assert_eq!(wdg.id, 13, "mwdg_feed must not overwrite the id field");
+    }
+
+    #[test]
+    fn test_readd_preserves_user_id() {
+        reset();
+        set_time(0);
+        let mut wdg = mwdg_node::default();
+        mwdg_assign_id(&mut wdg, 21);
+        mwdg_add(&mut wdg, 100);
+        set_time(50);
+        // Re-add the same node (acts as feed + timeout update)
+        mwdg_add(&mut wdg, 200);
+        assert_eq!(wdg.id, 21, "Re-adding must not overwrite the id field");
     }
 }

@@ -28,6 +28,29 @@ fn get_wdg_node_ref<'a>(wdg: *mut mwdg_node) -> Option<&'a mut mwdg_node> {
     unsafe { Some(&mut *wdg) }
 }
 
+/// Convert a raw `*mut *mut mwdg_node` to an optional mutable reference
+/// to the inner `*mut mwdg_node`.
+///
+/// # Safety
+/// Same guarantees as [`get_wdg_node_ref`] but for a double-pointer.
+fn get_cursor_ref<'a>(cursor: *mut *mut mwdg_node) -> Option<&'a mut *mut mwdg_node> {
+    if cursor.is_null() {
+        return None;
+    }
+    unsafe { Some(&mut *cursor) }
+}
+
+/// Convert a raw `*mut u32` to an optional mutable reference.
+///
+/// # Safety
+/// Same guarantees as [`get_wdg_node_ref`] but for a `u32`.
+fn get_u32_ref<'a>(ptr: *mut u32) -> Option<&'a mut u32> {
+    if ptr.is_null() {
+        return None;
+    }
+    unsafe { Some(&mut *ptr) }
+}
+
 fn touch_wdg_node(wdg: &mut mwdg_node) {
     let now = unsafe { mwdg_get_time_milliseconds() };
 
@@ -40,10 +63,10 @@ fn touch_wdg_node(wdg: &mut mwdg_node) {
 /// from a single execution context (e.g., main or init task).
 ///
 /// # Safety
-/// - All three function pointers must be non-null and valid for the lifetime of the program.
 /// - Must be called before any other `mwdg_*` function.
+/// - Must not be called from multiple threads
 #[unsafe(no_mangle)]
-pub extern "C" fn mwdg_init() {
+pub unsafe extern "C" fn mwdg_init() {
     let state = STATE.as_mut();
     state.head = ptr::null_mut();
     state.expired = false;
@@ -65,7 +88,7 @@ pub extern "C" fn mwdg_init() {
 /// - The pointed-to `SoftwareWdg` must not already be registered.
 /// - `mwdg_init` must have been called.
 #[unsafe(no_mangle)]
-pub extern "C" fn mwdg_add(wdg: *mut mwdg_node, timeout_ms: u32) {
+pub unsafe extern "C" fn mwdg_add(wdg: *mut mwdg_node, timeout_ms: u32) {
     if wdg.is_null() {
         return;
     }
@@ -135,7 +158,7 @@ pub extern "C" fn mwdg_add(wdg: *mut mwdg_node, timeout_ms: u32) {
 /// The function only checks for `null` and membership in the internal list;
 /// it does not otherwise validate the memory referenced by `wdg`.
 #[unsafe(no_mangle)]
-pub extern "C" fn mwdg_remove(wdg: *mut mwdg_node) {
+pub unsafe extern "C" fn mwdg_remove(wdg: *mut mwdg_node) {
     with_critical_section(|state| {
         if wdg.is_null() {
             return;
@@ -183,10 +206,35 @@ pub extern "C" fn mwdg_remove(wdg: *mut mwdg_node) {
 /// - `wdg` must be a valid, non-null pointer to a registered `struct mwdg_node`.
 /// - `mwdg_init` must have been called.
 #[unsafe(no_mangle)]
-pub extern "C" fn mwdg_feed(wdg: *mut mwdg_node) {
+pub unsafe extern "C" fn mwdg_feed(wdg: *mut mwdg_node) {
     with_critical_section(|_| {
         if let Some(node) = get_wdg_node_ref(wdg) {
             touch_wdg_node(node);
+        }
+    });
+}
+
+/// Assign a user-chosen identifier to a watchdog node.
+///
+/// The identifier is stored in the node and can be retrieved later via
+/// [`mwdg_get_next_expired`] to determine which watchdog(s) have expired.
+/// The library never modifies this field internally; it is purely for the
+/// caller's use.
+///
+/// This function may be called at any time — before or after [`mwdg_add`].
+///
+/// # Parameters
+/// - `wdg`: pointer to a caller-owned [`mwdg_node`].
+/// - `id`: the identifier to assign.
+///
+/// # Safety
+/// - `wdg` must be either null or a valid pointer to an `mwdg_node`.
+/// - `mwdg_init` must have been called.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwdg_assign_id(wdg: *mut mwdg_node, id: u32) {
+    with_critical_section(|_| {
+        if let Some(node) = get_wdg_node_ref(wdg) {
+            node.id = id;
         }
     });
 }
@@ -205,7 +253,7 @@ pub extern "C" fn mwdg_feed(wdg: *mut mwdg_node) {
 /// - `mwdg_init` must have been called.
 /// - All registered `struct mwdg_node` pointers must still be valid.
 #[unsafe(no_mangle)]
-pub extern "C" fn mwdg_check() -> i32 {
+pub unsafe extern "C" fn mwdg_check() -> i32 {
     let state = STATE.as_ref();
 
     if state.expired {
@@ -221,6 +269,86 @@ pub extern "C" fn mwdg_check() -> i32 {
 
             if elapsed > node.timeout_interval_ms {
                 state.expired = true;
+                return 1;
+            }
+
+            current = node.next;
+        }
+
+        0
+    })
+}
+
+/// Iterate over registered watchdogs and find the next expired one.
+///
+/// This function implements a cursor-based iterator over the linked list of
+/// registered watchdogs.  On each call it resumes from the position stored in
+/// `*cursor` and scans forward for the next node whose elapsed time exceeds
+/// its timeout interval.
+///
+/// # Usage (C)
+/// ```c
+/// struct mwdg_node *cursor = NULL;
+/// uint32_t id;
+/// while (mwdg_get_next_expired(&cursor, &id)) {
+///     printf("expired watchdog id: %u\n", id);
+/// }
+/// ```
+///
+/// # Parameters
+/// - `cursor`: pointer to a `*mut mwdg_node` that tracks iteration state.
+///   The caller must initialise `*cursor` to `NULL` before the first call.
+///   The function advances `*cursor` to the found node on success.
+/// - `out_id`: pointer to a `u32` where the expired node's identifier
+///   (set via [`mwdg_assign_id`]) will be written on success.
+///
+/// # Returns
+/// - `1` if an expired node was found (`*out_id` is written, `*cursor` is
+///   advanced).
+/// - `0` when no more expired nodes remain (iteration complete), or if
+///   `cursor` or `out_id` is null.
+///
+/// # Note
+/// Each call enters and exits the critical section independently. If the
+/// list is modified between calls the iterator may skip or revisit nodes.
+/// In typical RTOS usage the check loop runs from a single supervisory task,
+/// so this is not a concern.
+///
+/// # Safety
+/// - `cursor` must be either null or a valid pointer to a `*mut mwdg_node`.
+/// - `out_id` must be either null or a valid pointer to a `u32`.
+/// - `mwdg_init` must have been called.
+/// - All registered `struct mwdg_node` pointers must still be valid.
+#[unsafe(no_mangle)]
+pub unsafe extern "C" fn mwdg_get_next_expired(
+    cursor: *mut *mut mwdg_node,
+    out_id: *mut u32,
+) -> i32 {
+    let (Some(cursor_ref), Some(out_id_ref)) = (get_cursor_ref(cursor), get_u32_ref(out_id)) else {
+        return 0;
+    };
+
+    with_critical_section(|state| {
+        let now = unsafe { mwdg_get_time_milliseconds() };
+
+        // Determine start position: if *cursor is NULL we start from
+        // the head of the list; otherwise from the node after *cursor.
+        let start = if (*cursor_ref).is_null() {
+            state.head
+        } else {
+            // SAFETY: *cursor_ref is non-null and was previously set by this
+            // function to point to a valid registered node.
+            unsafe { (**cursor_ref).next }
+        };
+
+        let mut current = start;
+
+        while let Some(node) = unsafe { current.as_mut() } {
+            let elapsed = now.wrapping_sub(node.last_touched_timestamp_ms);
+
+            if elapsed > node.timeout_interval_ms {
+                *out_id_ref = node.id;
+                *cursor_ref = current;
                 return 1;
             }
 
