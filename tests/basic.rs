@@ -409,6 +409,11 @@ fn test_get_next_expired_one_expired() {
 
     set_time(150);
     // wdg1 (100ms) expired, wdg2 (200ms) and wdg3 (300ms) ok
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "mwdg_check must detect expiration"
+    );
     let ids = collect_expired_ids();
     assert_eq!(ids.len(), 1, "Exactly one node should be expired");
     assert_eq!(ids[0], 1, "The expired node should be wdg1 (id=1)");
@@ -431,6 +436,11 @@ fn test_get_next_expired_multiple_expired() {
     }
 
     set_time(250); // wdg1 (100ms) and wdg2 (200ms) expired, wdg3 (300ms) ok
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "mwdg_check must detect expiration"
+    );
     let ids = collect_expired_ids();
     assert_eq!(ids.len(), 2, "Two nodes should be expired");
     // Order depends on list order (head-prepend: wdg3 -> wdg2 -> wdg1)
@@ -456,6 +466,11 @@ fn test_get_next_expired_all_expired() {
     }
 
     set_time(100); // All expired
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "mwdg_check must detect expiration"
+    );
     let ids = collect_expired_ids();
     assert_eq!(ids.len(), 3, "All three nodes should be expired");
     assert!(ids.contains(&100));
@@ -474,6 +489,11 @@ fn test_get_next_expired_default_id_zero() {
     }
 
     set_time(100);
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "mwdg_check must detect expiration"
+    );
     let ids = collect_expired_ids();
     assert_eq!(ids.len(), 1);
     assert_eq!(ids[0], 0, "Default id should be 0");
@@ -521,6 +541,11 @@ fn test_get_next_expired_after_feed() {
     } // reset wdg1 timer to 80
     set_time(150); // wdg1: elapsed=70 < 100 (ok), wdg2: elapsed=150 > 100 (expired)
 
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "mwdg_check must detect expiration"
+    );
     let ids = collect_expired_ids();
     assert_eq!(ids.len(), 1, "Only unfed wdg2 should expire");
     assert_eq!(ids[0], 2);
@@ -539,7 +564,69 @@ fn test_get_next_expired_wrapping_time() {
 
     // Wrap around: 150ms elapsed (past 100ms timeout)
     set_time(near_max.wrapping_add(150));
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "mwdg_check must detect expiration"
+    );
     let ids = collect_expired_ids();
     assert_eq!(ids.len(), 1);
     assert_eq!(ids[0], 77);
+}
+
+#[test]
+fn test_get_next_expired_without_prior_check() {
+    reset();
+    set_time(0);
+    let mut wdg = new_wdg();
+    unsafe {
+        mwdg_assign_id(&mut wdg, 5);
+        mwdg_add(&mut wdg, 50);
+    }
+
+    // Advance time past timeout but do NOT call mwdg_check
+    set_time(100);
+
+    // mwdg_get_next_expired should return 0 because mwdg_check has not
+    // set state.expired = true.
+    let ids = collect_expired_ids();
+    assert!(
+        ids.is_empty(),
+        "Iterator must return nothing when mwdg_check has not detected expiration"
+    );
+}
+
+#[test]
+fn test_get_next_expired_after_feed_race() {
+    // Scenario: a frozen task's feed arrives between mwdg_check and
+    // mwdg_get_next_expired.  The iterator should still report the node
+    // as expired because it uses the snapshot timestamp from mwdg_check.
+    reset();
+    set_time(0);
+    let mut wdg = new_wdg();
+    unsafe {
+        mwdg_assign_id(&mut wdg, 42);
+        mwdg_add(&mut wdg, 100);
+    }
+
+    // Advance past timeout
+    set_time(200);
+    assert_eq!(
+        unsafe { mwdg_check() },
+        1,
+        "Should detect expiration at t=200"
+    );
+
+    // Simulate the frozen task recovering and feeding its watchdog
+    // AFTER mwdg_check but BEFORE iterating.
+    set_time(201);
+    unsafe {
+        mwdg_feed(&mut wdg);
+    }
+
+    // Even though wdg was just fed at t=201, the iterator should use
+    // expired_at_ms = 200 and still see the node as expired.
+    let ids = collect_expired_ids();
+    assert_eq!(ids.len(), 1, "Node should still be reported as expired");
+    assert_eq!(ids[0], 42);
 }
