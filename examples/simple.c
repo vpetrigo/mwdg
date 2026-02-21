@@ -75,7 +75,8 @@ static void *worker1_func(void *arg)
     (void)arg;
 
     mwdg_add(&wdg, 100);
-    printf("[worker-1] registered watchdog (timeout=100 ms)\n");
+    mwdg_assign_id(&wdg, 0xCAFE);
+    printf("[worker-1] registered watchdog (timeout=100 ms, id=1)\n");
 
     while (!g_stop_feeding) {
         mwdg_feed(&wdg);
@@ -99,7 +100,8 @@ static void *worker2_func(void *arg)
     (void)arg;
 
     mwdg_add(&wdg, 200);
-    printf("[worker-2] registered watchdog (timeout=200 ms)\n");
+    mwdg_assign_id(&wdg, 0xBEEF);
+    printf("[worker-2] registered watchdog (timeout=200 ms, id=2)\n");
 
     for (i = 0; i < 30; i++) {
         mwdg_feed(&wdg);
@@ -135,6 +137,15 @@ int main(void)
 
         printf("[main] tick %2d: mwdg_check -> %s\n",
                tick, status == 0 ? "HEALTHY" : "EXPIRED");
+
+        /* If expired, iterate to find which watchdog(s) caused it. */
+        if (status != 0) {
+            struct mwdg_node *cursor = NULL;
+            uint32_t id;
+            while (mwdg_get_next_expired(&cursor, &id) != 0) {
+                printf("[main]   expired watchdog id: 0x%04X\n", id);
+            }
+        }
 
         /* After ~300 ms, tell worker-1 to stop feeding. */
         if (tick == 6) {

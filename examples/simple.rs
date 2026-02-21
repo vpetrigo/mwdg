@@ -99,9 +99,9 @@ fn main() {
     // Initialize the monotonic clock origin.
     unsafe {
         TIME_ORIGIN = Some(Instant::now());
+        mwdg::mwdg_init();
     }
 
-    mwdg::mwdg_init();
     println!("[main] mwdg subsystem initialized");
     let mut node1 = core::pin::pin!(mwdg_node::default());
     let mut node2 = core::pin::pin!(mwdg_node::default());
@@ -112,10 +112,18 @@ fn main() {
     let ptr1 = NodePtr(unsafe { ptr::from_mut(node1.as_mut().get_unchecked_mut()) });
     let ptr2 = NodePtr(unsafe { ptr::from_mut(node2.as_mut().get_unchecked_mut()) });
 
+    // Assign user-defined IDs so expired nodes can be identified.
+    unsafe {
+        mwdg::mwdg_assign_id(ptr1.get(), 1);
+        mwdg::mwdg_assign_id(ptr2.get(), 2);
+    }
+
     // Worker 1: feeds normally for ~300 ms, then stops
     let handle1 = std::thread::spawn(move || {
-        mwdg::mwdg_add(ptr1.get(), 100); // 100 ms timeout
-        println!("[worker-1] registered watchdog (timeout=100 ms)");
+        unsafe {
+            mwdg::mwdg_add(ptr1.get(), 100); // 100 ms timeout
+        }
+        println!("[worker-1] registered watchdog (timeout=100 ms, id=1)");
 
         loop {
             if STOP_FEEDING.load(Ordering::Relaxed) {
@@ -123,18 +131,24 @@ fn main() {
                 return;
             }
 
-            mwdg::mwdg_feed(ptr1.get());
+            unsafe {
+                mwdg::mwdg_feed(ptr1.get());
+            }
             std::thread::sleep(Duration::from_millis(40)); // well within 100 ms
         }
     });
 
     // Worker 2: feeds reliably for the whole duration
     let handle2 = std::thread::spawn(move || {
-        mwdg::mwdg_add(ptr2.get(), 200);
-        println!("[worker-2] registered watchdog (timeout=200 ms)");
+        unsafe {
+            mwdg::mwdg_add(ptr2.get(), 200);
+        }
+        println!("[worker-2] registered watchdog (timeout=200 ms, id=2)");
 
         for _ in 0..30 {
-            mwdg::mwdg_feed(ptr2.get());
+            unsafe {
+                mwdg::mwdg_feed(ptr2.get());
+            }
             std::thread::sleep(Duration::from_millis(80));
         }
 
@@ -143,9 +157,18 @@ fn main() {
 
     // Main loop: check health every 50 ms
     for tick in 0..30 {
-        let status = mwdg::mwdg_check();
+        let status = unsafe { mwdg::mwdg_check() };
         let label = if status == 0 { "HEALTHY" } else { "EXPIRED" };
         println!("[main] tick {tick:>2}: mwdg_check -> {label}");
+
+        // If expired, iterate to find which watchdog(s) caused it.
+        if status != 0 {
+            let mut cursor: *mut mwdg_node = ptr::null_mut();
+            let mut id: u32 = 0;
+            while unsafe { mwdg::mwdg_get_next_expired(&mut cursor, &mut id) } != 0 {
+                println!("[main]   expired watchdog id: {id}");
+            }
+        }
 
         // After ~300 ms, tell worker-1 to stop feeding.
         if tick == 6 {
