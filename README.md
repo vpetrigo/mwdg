@@ -23,7 +23,7 @@ To use in Rust projects:
 
 ```toml
 [dependencies]
-mwdg = "0.1"
+mwdg = "0.2"
 ```
 
 To use in C/C++ projects, see info below.
