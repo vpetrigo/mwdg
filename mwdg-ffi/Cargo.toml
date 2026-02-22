@@ -1,0 +1,29 @@
+[package]
+name = "mwdg-ffi"
+version = "0.2.0"
+edition = "2024"
+description = "C FFI bindings for the mwdg micro-watchdog library"
+repository = "https://github.com/vpetrigo/mwdg"
+categories = ["no-std", "embedded"]
+keywords = ["watchdog", "wdg", "wdt", "watchdog-timer", "ffi"]
+license = "MIT OR Apache-2.0"
+
+exclude = [
+    ".*",
+]
+
+[lib]
+# The lib crate references extern "C" symbols provided by the user.
+# Unit tests would fail to link without those symbols, and all tests
+# live in the integration test suite (tests/basic.rs) which provides
+# mock implementations.
+test = false
+
+[features]
+pack = []
+
+[dependencies]
+mwdg = { path = "../mwdg" }
+
+[build-dependencies]
+cbindgen = "~0.29"

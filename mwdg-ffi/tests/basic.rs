@@ -1,4 +1,4 @@
-use mwdg::*;
+use mwdg_ffi::*;
 
 use core::ptr;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -6,13 +6,13 @@ use core::sync::atomic::{AtomicU32, Ordering};
 // Safe wrapper helpers that call the unsafe crate functions.
 fn safe_mwdg_init() {
     unsafe {
-        mwdg::mwdg_init();
+        mwdg_init();
     }
 }
 
 fn safe_mwdg_add(wdg: *mut mwdg_node, timeout_ms: u32) {
     unsafe {
-        mwdg::mwdg_add(wdg, timeout_ms);
+        mwdg_add(wdg, timeout_ms);
     }
 }
 
