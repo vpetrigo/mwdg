@@ -5,7 +5,7 @@ edition = "2024"
 description = "Micro-watchdog library for embedded RTOS systems with C FFI"
 repository = "https://github.com/vpetrigo/mwdg"
 categories = ["no-std", "embedded"]
-keywords = ["watchdog", "wdg", "wdt", "watchdog timer"]
+keywords = ["watchdog", "wdg", "wdt", "watchdog-timer", "ffi"]
 license = "MIT OR Apache-2.0"
 
 exclude = [
