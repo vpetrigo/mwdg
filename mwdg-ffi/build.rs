@@ -2,11 +2,12 @@ fn main() {
     let crate_dir = std::env::var("CARGO_MANIFEST_DIR").unwrap();
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let include_dir = format!("{out_dir}/include");
+    let cbindgen_config = format!("{crate_dir}/cbindgen.toml");
 
     println!("cargo::rerun-if-changed=cbindgen.toml");
     std::fs::create_dir_all(&include_dir).ok();
 
-    let config = cbindgen::Config::from_file("cbindgen.toml").unwrap_or_default();
+    let config = cbindgen::Config::from_file(&cbindgen_config).unwrap_or_default();
 
     cbindgen::Builder::new()
         .with_crate(&crate_dir)

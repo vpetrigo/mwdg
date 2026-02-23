@@ -9,18 +9,22 @@
  *    which causes mwdg_check() to detect expiration.
  *  - The main thread calls mwdg_check() in a loop and prints health status.
  *
- * Build (Linux, assuming libmwdg.a was produced by `cargo build --release`):
+ * Build (Linux, assuming libmwdg_ffi.a was produced by
+ * `cargo rustc -p mwdg-ffi --release --features "pack" -- --crate-type staticlib`):
+ *
+ *   # Locate the generated header (under mwdg-ffi's build dir):
+ *   HEADER_DIR=$(dirname "$(find target/release/build -name mwdg.h -path '*include*')")
  *
  *   gcc -o simple examples/simple.c \
- *       -Iinclude \
- *       -Ltarget/release -lmwdg \
+ *       -I$HEADER_DIR \
+ *       -Ltarget/release -lmwdg_ffi \
  *       -lpthread
  *
  * Or with a cross-compiled static library for an ARM target:
  *
  *   arm-none-eabi-gcc -o simple examples/simple.c \
  *       -Iinclude \
- *       -Llib/thumbv7em-none-eabihf -lmwdg \
+ *       -Llib/thumbv7em-none-eabihf -lmwdg_ffi \
  *       -lpthread
  */
 #include "mwdg.h"

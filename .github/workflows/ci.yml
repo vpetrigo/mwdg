@@ -21,8 +21,8 @@ jobs:
         with:
           toolchain: stable
           components: clippy
-      - name: Run clippy on sntpc crate and all examples
-        run: cargo clippy --all-features -- -D clippy::all -D clippy::pedantic
+      - name: Run clippy on workspace
+        run: cargo clippy --workspace --all-features -- -D clippy::all -D clippy::pedantic
 
   clippy-nightly:
     name: Run clippy with nightly
@@ -35,8 +35,8 @@ jobs:
         with:
           toolchain: nightly
           components: clippy
-      - name: Run clippy for async feature with nightly
-        run: cargo +nightly clippy --all-features -- -D clippy::all -D clippy::pedantic
+      - name: Run clippy on workspace with nightly
+        run: cargo +nightly clippy --workspace --all-features -- -D clippy::all -D clippy::pedantic
 
   check-format:
     name: Check formatting
@@ -48,7 +48,7 @@ jobs:
           toolchain: stable
           components: rustfmt
       - name: Check formatting
-        run: cargo fmt --check
+        run: cargo fmt --check --all
 
   build-test:
     name: Build crate and test
@@ -60,8 +60,8 @@ jobs:
           toolchain: stable
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: taiki-e/install-action@nextest
-      - name: Run mwdg tests with LLVM Cov
-        run: cargo llvm-cov nextest --lcov --output-path lcov.info --profile ci
+      - name: Run workspace tests with LLVM Cov
+        run: cargo llvm-cov nextest --workspace --lcov --output-path lcov.info --profile ci
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -83,7 +83,7 @@ jobs:
         with:
           toolchain: stable
       - name: Build Rust example
-        run: cargo build --examples
+        run: cargo build -p mwdg --examples
 
   build-c-example:
     name: Build C example
@@ -95,14 +95,14 @@ jobs:
           toolchain: stable
       - name: Build static library
         run: |
-          cargo rustc --release --features "pack" -- --crate-type staticlib -Cpanic=abort
-          cp target/release/libmwdg.rlib target/release/libmwdg.a
+          cargo rustc -p mwdg-ffi --release --features "pack" -- -Cpanic=abort
+          cp target/release/libmwdg_ffi.rlib target/release/libmwdg_ffi.a
       - name: Locate generated header
         id: header
         run: |
           HEADER_DIR=$(dirname "$(find target/release/build -name mwdg.h -path '*/include/*')")
           echo "INCLUDE_DIR=$HEADER_DIR" >> $GITHUB_OUTPUT
       - name: Build C example
-        run: gcc -o simple examples/simple.c -I${{ steps.header.outputs.INCLUDE_DIR }} -Ltarget/release -lmwdg -lpthread
+        run: gcc -o simple examples/simple.c -I${{ steps.header.outputs.INCLUDE_DIR }} -Ltarget/release -lmwdg_ffi -lpthread
       - name: Run C example
         run: ./simple

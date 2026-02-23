@@ -1,4 +1,4 @@
-use mwdg::*;
+use mwdg_ffi::*;
 
 use core::ptr;
 use core::sync::atomic::{AtomicU32, Ordering};
@@ -6,13 +6,13 @@ use core::sync::atomic::{AtomicU32, Ordering};
 // Safe wrapper helpers that call the unsafe crate functions.
 fn safe_mwdg_init() {
     unsafe {
-        mwdg::mwdg_init();
+        mwdg_init();
     }
 }
 
 fn safe_mwdg_add(wdg: *mut mwdg_node, timeout_ms: u32) {
     unsafe {
-        mwdg::mwdg_add(wdg, timeout_ms);
+        mwdg_add(wdg, timeout_ms);
     }
 }
 
@@ -435,7 +435,8 @@ fn test_get_next_expired_multiple_expired() {
         mwdg_add(&mut wdg3, 300);
     }
 
-    set_time(250); // wdg1 (100ms) and wdg2 (200ms) expired, wdg3 (300ms) ok
+    set_time(250);
+    // wdg1 (100ms) and wdg2 (200ms) expired, wdg3 (300ms) ok
     assert_eq!(
         unsafe { mwdg_check() },
         1,
@@ -599,8 +600,10 @@ fn test_get_next_expired_without_prior_check() {
 #[test]
 fn test_get_next_expired_after_feed_race() {
     // Scenario: a frozen task's feed arrives between mwdg_check and
-    // mwdg_get_next_expired.  The iterator should still report the node
-    // as expired because it uses the snapshot timestamp from mwdg_check.
+    // mwdg_get_next_expired.  Because the feed updated
+    // last_touched_timestamp_ms to a value *after* the expired_at_ms
+    // snapshot, the wrapping_sub would underflow.  The half-range guard
+    // must detect this and skip the node.
     reset();
     set_time(0);
     let mut wdg = new_wdg();
@@ -624,9 +627,56 @@ fn test_get_next_expired_after_feed_race() {
         mwdg_feed(&mut wdg);
     }
 
-    // Even though wdg was just fed at t=201, the iterator should use
-    // expired_at_ms = 200 and still see the node as expired.
+    // The node was fed after the snapshot (last_touched=201 > expired_at_ms=200).
+    // next_expired cannot confirm the node was expired at snapshot time, so
+    // it must be skipped.  check() already returned true — that is the
+    // authoritative expiration signal.
     let ids = collect_expired_ids();
-    assert_eq!(ids.len(), 1, "Node should still be reported as expired");
-    assert_eq!(ids[0], 42);
+    assert_eq!(
+        ids.len(),
+        0,
+        "Node fed after snapshot must not appear in expired list"
+    );
+}
+
+#[test]
+fn test_get_next_expired_feed_race_does_not_falsely_report_healthy_node() {
+    // Scenario: two nodes registered.  check() detects one as expired and
+    // freezes expired_at_ms.  Between check() and the iterator, the
+    // *healthy* node is fed at a timestamp after the snapshot.  Without
+    // the half-range guard the wrapping_sub would underflow and falsely
+    // report the healthy node as expired.
+    reset();
+    set_time(0);
+    let mut wdg1 = new_wdg();
+    let mut wdg2 = new_wdg();
+    unsafe {
+        mwdg_assign_id(&mut wdg1, 1);
+        mwdg_assign_id(&mut wdg2, 2);
+        mwdg_add(&mut wdg1, 100); // timeout 100 ms
+        mwdg_add(&mut wdg2, 200); // timeout 200 ms
+    }
+
+    // Feed wdg2 at t=350 so it stays healthy.
+    set_time(350);
+    unsafe {
+        mwdg_feed(&mut wdg2);
+    }
+
+    // check() at t=450:
+    //   wdg1: elapsed = 450 - 0   = 450 > 100 → expired
+    //   wdg2: elapsed = 450 - 350 = 100 < 200 → healthy
+    set_time(450);
+    assert_eq!(unsafe { mwdg_check() }, 1, "Should detect wdg1 expiration");
+
+    // Simulate race: wdg2 is fed AFTER the snapshot.
+    set_time(460);
+    unsafe {
+        mwdg_feed(&mut wdg2);
+    }
+
+    // Only wdg1 should be reported.  Without the fix, wdg2 would also
+    // appear because 450_u32.wrapping_sub(460) = u32::MAX - 9 > 200.
+    let ids = collect_expired_ids();
+    assert_eq!(ids, vec![1], "Only wdg1 should be expired");
 }
