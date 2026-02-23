@@ -79,9 +79,6 @@ impl Default for mwdg_node {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Compile-time layout assertions
-// ---------------------------------------------------------------------------
 // `WatchdogNode` is `#[repr(C)]` with fields (u32, u32, u32, *mut Self,
 // PhantomPinned). `PhantomPinned` is a ZST with alignment 1, so it does not
 // affect the `repr(C)` layout. The first four fields are identical in type and
@@ -95,10 +92,6 @@ const _: () = assert!(
     core::mem::align_of::<mwdg_node>() == core::mem::align_of::<WatchdogNode>(),
     "mwdg_node and WatchdogNode must have the same alignment"
 );
-
-// ---------------------------------------------------------------------------
-// Pointer helpers
-// ---------------------------------------------------------------------------
 
 /// Cast a `*mut mwdg_node` to `*mut WatchdogNode`.
 ///
@@ -130,10 +123,6 @@ unsafe fn pin_node_mut<'a>(ptr: *mut mwdg_node) -> Option<Pin<&'a mut WatchdogNo
     unsafe { Some(Pin::new_unchecked(&mut *cast_node(ptr))) }
 }
 
-// ---------------------------------------------------------------------------
-// Global state
-// ---------------------------------------------------------------------------
-
 /// Wrapper to allow `WatchdogRegistry` in a `static`.
 ///
 /// # Safety
@@ -157,10 +146,6 @@ impl GlobalState {
         unsafe { &*self.0.get() }
     }
 }
-
-// ---------------------------------------------------------------------------
-// Critical section helper
-// ---------------------------------------------------------------------------
 
 /// Execute `f` inside the user-provided critical section.
 #[inline]
