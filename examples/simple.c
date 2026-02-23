@@ -13,7 +13,7 @@
  * `cargo rustc -p mwdg-ffi --release --features "pack" -- --crate-type staticlib`):
  *
  *   # Locate the generated header (under mwdg-ffi's build dir):
- *   HEADER_DIR=$(dirname "$(find target/release/build -name mwdg.h -path '*/include/*')")
+ *   HEADER_DIR=$(dirname "$(find target/release/build -name mwdg.h -path '*include*')")
  *
  *   gcc -o simple examples/simple.c \
  *       -I$HEADER_DIR \

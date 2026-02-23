@@ -435,7 +435,8 @@ fn test_get_next_expired_multiple_expired() {
         mwdg_add(&mut wdg3, 300);
     }
 
-    set_time(250); // wdg1 (100ms) and wdg2 (200ms) expired, wdg3 (300ms) ok
+    set_time(250);
+    // wdg1 (100ms) and wdg2 (200ms) expired, wdg3 (300ms) ok
     assert_eq!(
         unsafe { mwdg_check() },
         1,

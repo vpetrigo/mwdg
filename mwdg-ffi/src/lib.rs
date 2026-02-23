@@ -157,10 +157,6 @@ fn with_critical_section<R>(f: impl FnOnce(&mut WatchdogRegistry) -> R) -> R {
     result
 }
 
-// ---------------------------------------------------------------------------
-// Public C FFI functions
-// ---------------------------------------------------------------------------
-
 /// Initialize the multi-watchdog subsystem.
 ///
 /// Must be called exactly once before any other `mwdg_*` function,
