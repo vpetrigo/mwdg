@@ -30,7 +30,7 @@ use core::ptr;
 
 /// A single software watchdog node.
 ///
-/// Each RTOS task owns one of these (typically as a `static` or a long-lived
+/// Each RTOS/async task owns one of these (typically as a `static` or a long-lived
 /// stack variable). The struct is an intrusive linked-list node managed by
 /// [`WatchdogRegistry`].
 ///
@@ -352,8 +352,11 @@ impl WatchdogRegistry {
     ///
     /// The evaluation uses the `expired_at_ms` timestamp snapshot captured by
     /// [`check`](Self::check), so nodes are compared against the same point
-    /// in time that triggered the expiration — even if a task calls
-    /// [`feed`](Self::feed) between `check` and this method.
+    /// in time that triggered the expiration.  A half-range guard filters
+    /// out nodes whose [`feed`](Self::feed) timestamp is *ahead* of the
+    /// snapshot (i.e. they were fed between `check` and this method),
+    /// preventing `wrapping_sub` underflow from being misinterpreted as a
+    /// large elapsed time.
     ///
     /// # Parameters
     /// - `cursor`: a mutable reference to a raw pointer that tracks iteration
@@ -403,7 +406,12 @@ impl WatchdogRegistry {
             let node = unsafe { &*current };
             let elapsed = now.wrapping_sub(node.last_touched_timestamp_ms);
 
-            if elapsed > node.timeout_interval_ms {
+            // The half-range guard (`elapsed <= u32::MAX / 2`) filters out
+            // nodes that were fed *after* the `expired_at_ms` snapshot was
+            // taken.  In that case `wrapping_sub` underflows and produces a
+            // value in the upper half of the u32 range, which would otherwise
+            // be misinterpreted as an enormous elapsed time.
+            if elapsed <= u32::MAX / 2 && elapsed > node.timeout_interval_ms {
                 *cursor = current;
                 return Some(node.id);
             }
@@ -441,10 +449,6 @@ mod tests {
         }
         count
     }
-
-    // ---------------------------------------------------------------
-    // add
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_add_single_node() {
@@ -521,10 +525,6 @@ mod tests {
         }
         assert_eq!(n.id, 7, "re-add must not overwrite the id field");
     }
-
-    // ---------------------------------------------------------------
-    // remove
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_remove_single_node() {
@@ -642,10 +642,6 @@ mod tests {
         assert_eq!(count_nodes(reg.head), 0);
     }
 
-    // ---------------------------------------------------------------
-    // feed
-    // ---------------------------------------------------------------
-
     #[test]
     fn test_feed_updates_timestamp() {
         let mut reg = WatchdogRegistry::new();
@@ -675,10 +671,6 @@ mod tests {
         assert_eq!(n.id, 13, "feed must not overwrite the id field");
     }
 
-    // ---------------------------------------------------------------
-    // assign_id
-    // ---------------------------------------------------------------
-
     #[test]
     fn test_assign_id() {
         let mut n = WatchdogNode::default();
@@ -689,10 +681,6 @@ mod tests {
         }
         assert_eq!(n.id(), 42);
     }
-
-    // ---------------------------------------------------------------
-    // check — healthy
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_check_healthy() {
@@ -719,10 +707,6 @@ mod tests {
         // Exactly at the timeout boundary — not expired (> required, not >=)
         assert!(!reg.check(200));
     }
-
-    // ---------------------------------------------------------------
-    // check — expired
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_check_expired() {
@@ -751,10 +735,6 @@ mod tests {
         assert_eq!(reg.expired_at_ms, 200);
     }
 
-    // ---------------------------------------------------------------
-    // check — latching
-    // ---------------------------------------------------------------
-
     #[test]
     fn test_check_latching() {
         let mut reg = WatchdogRegistry::new();
@@ -777,10 +757,6 @@ mod tests {
         // expired_at_ms should NOT change
         assert_eq!(reg.expired_at_ms, 200);
     }
-
-    // ---------------------------------------------------------------
-    // check — wrapping time arithmetic
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_check_wrapping_time_healthy() {
@@ -811,10 +787,6 @@ mod tests {
         // 351 > 200 → expired
         assert!(reg.check(300));
     }
-
-    // ---------------------------------------------------------------
-    // next_expired
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_next_expired_iteration() {
@@ -885,9 +857,58 @@ mod tests {
         assert_eq!(reg.next_expired(&mut cursor), None);
     }
 
-    // ---------------------------------------------------------------
-    // init
-    // ---------------------------------------------------------------
+    #[test]
+    fn test_next_expired_skips_node_fed_after_snapshot() {
+        // Scenario: two nodes registered. check() detects an expiration and
+        // freezes expired_at_ms.  Before next_expired() is called, the
+        // healthy node is fed at a timestamp *after* the snapshot.
+        // next_expired() must NOT report the healthy node — the
+        // wrapping_sub underflow must be caught by the half-range guard.
+        let mut reg = WatchdogRegistry::new();
+        let mut n1 = WatchdogNode::default();
+        let mut n2 = WatchdogNode::default();
+
+        unsafe {
+            WatchdogRegistry::assign_id(pin_mut(&mut n1), 1);
+            WatchdogRegistry::assign_id(pin_mut(&mut n2), 2);
+
+            reg.add(pin_mut(&mut n1), 100, 0); // timeout 100 ms
+            reg.add(pin_mut(&mut n2), 200, 0); // timeout 200 ms
+        }
+        // list: n2 -> n1
+
+        // Feed n2 at t=350 (healthy), but do NOT feed n1.
+        unsafe {
+            WatchdogRegistry::feed(pin_mut(&mut n2), 350);
+        }
+
+        // check() at t=450: n1 elapsed = 450 > 100 (expired),
+        //                    n2 elapsed = 100 < 200 (healthy).
+        assert!(reg.check(450));
+        assert_eq!(reg.expired_at_ms, 450);
+
+        // Simulate race: n2 is fed AFTER the snapshot at t=460.
+        unsafe {
+            WatchdogRegistry::feed(pin_mut(&mut n2), 460);
+        }
+
+        // next_expired() should only report n1.
+        // Without the fix, n2 would also be reported because
+        // 450_u32.wrapping_sub(460) = u32::MAX - 9, which > 200.
+        let mut cursor: *const WatchdogNode = ptr::null();
+        let mut expired_ids = [0u32; 4];
+        let mut count = 0;
+        while let Some(id) = reg.next_expired(&mut cursor) {
+            expired_ids[count] = id;
+            count += 1;
+            if count >= expired_ids.len() {
+                break;
+            }
+        }
+
+        assert_eq!(count, 1, "Only n1 should be expired");
+        assert_eq!(expired_ids[0], 1);
+    }
 
     #[test]
     fn test_init_resets_state() {
@@ -908,10 +929,6 @@ mod tests {
         assert_eq!(reg.expired_at_ms, 0);
     }
 
-    // ---------------------------------------------------------------
-    // WatchdogNode default
-    // ---------------------------------------------------------------
-
     #[test]
     fn test_node_default() {
         let n = WatchdogNode::default();
@@ -921,19 +938,11 @@ mod tests {
         assert!(n.next.is_null());
     }
 
-    // ---------------------------------------------------------------
-    // check — empty registry
-    // ---------------------------------------------------------------
-
     #[test]
     fn test_check_empty_registry() {
         let mut reg = WatchdogRegistry::new();
         assert!(!reg.check(1000));
     }
-
-    // ---------------------------------------------------------------
-    // multiple add/remove cycles
-    // ---------------------------------------------------------------
 
     #[test]
     fn test_add_remove_add_cycle() {
