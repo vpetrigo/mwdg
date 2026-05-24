@@ -35,8 +35,8 @@ To use in C/C++ projects, see info below.
 cargo rustc -p mwdg-ffi --target thumbv7em-none-eabihf --features "pack"
 ```
 
-The `target/thumbv7em-none-eabihf/release` will contain the `libmwdg.rlib` that can be renamed into the
-`libmwdg.a` and used along with the header `mwdg.h` file from the `include/` directory in your C/C++ project.
+The `target/thumbv7em-none-eabihf/release` will contain the `libmwdg_ffi.rlib` that can be renamed into the
+`libmwdg_ffi.a` and used along with the header `mwdg.h` file from the `include/` directory in your C/C++ project.
 
 # Examples
 
