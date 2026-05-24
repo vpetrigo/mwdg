@@ -21,10 +21,10 @@ To use in C/C++ projects, you need to build the static library:
 
 ```sh
 # Build for target (e.g., ARMv7-M FP)
-cargo rustc -p mwdg-ffi --target <target-triple> --features "pack"
+cargo build -p mwdg-ffi --target <target-triple> --release
 ```
 
-The `target/<target-triple>/release` directory will contain `libmwdg_ffi.rlib` (or `libmwdg_ffi.a` depending on configuration). You can link this file along with the header `mwdg.h` (generated in the build process under the `include/` directory) in your C/C++ project.
+The `target/<target-triple>/release` directory will contain `libmwdg_ffi.a`. You can link this file along with the header `mwdg.h` (generated in the build process under the `OUT_DIR` directory) in your C/C++ project.
 
 # License
 

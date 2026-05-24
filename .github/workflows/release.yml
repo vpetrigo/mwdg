@@ -32,7 +32,7 @@ jobs:
           toolchain: stable
           targets: ${{ matrix.target }}
       - name: Build static library
-        run: cargo rustc -p mwdg-ffi --release --target ${{ matrix.target }} --features "pack"
+        run: cargo rustc -p mwdg-ffi --release --target ${{ matrix.target }}
       - name: Rename artifact
         run: |
           mkdir -p lib/${{ matrix.target }}

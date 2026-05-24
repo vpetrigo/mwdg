@@ -95,7 +95,7 @@ jobs:
           toolchain: stable
       - name: Build static library
         run: |
-          cargo rustc -p mwdg-ffi --release --features "pack" -- -Cpanic=abort
+          cargo rustc -p mwdg-ffi --release -- -Cpanic=abort
           cp target/release/libmwdg_ffi.rlib target/release/libmwdg_ffi.a
       - name: Locate generated header
         id: header

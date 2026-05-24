@@ -10,7 +10,7 @@
  *  - The main thread calls mwdg_check() in a loop and prints health status.
  *
  * Build (Linux, assuming libmwdg_ffi.a was produced by
- * `cargo rustc -p mwdg-ffi --release --features "pack" -- --crate-type staticlib`):
+ * `cargo rustc -p mwdg-ffi --release -- --crate-type staticlib`):
  *
  *   # Locate the generated header (under mwdg-ffi's build dir):
  *   HEADER_DIR=$(dirname "$(find target/release/build -name mwdg.h -path '*include*')")

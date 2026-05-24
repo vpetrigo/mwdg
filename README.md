@@ -6,16 +6,13 @@
 # mwdg - Micro-Watchdog Library
 
 A `no_std` software micro-watchdog library for embedded RTOS systems.
-Each RTOS task registers a `mwdg_node` with a timeout interval.
-The task periodically calls `mwdg_feed` to signal liveness.
-A central `mwdg_check` function that verifies all registered watchdogs
-are healthy, enabling the main loop to gate hardware watchdog resets.
+Each RTOS task registers a `WatchdogNode` with a timeout interval via `WatchdogRegistry::add`.
+The task periodically calls `WatchdogRegistry::feed` to signal liveness.
+A central `WatchdogRegistry::check` method verifies all registered watchdogs are healthy, enabling the main loop to gate hardware watchdog resets.
 
 # C FFI
 
-All public functions declared to be exposed without mangling, so the library can be
-linked from C/C++ code. Use the generated `include/mwdg.h` header for having proper
-interface declaration.
+The `mwdg-ffi` crate provides C-compatible bindings for this library. These are exposed without mangling, enabling the library to be linked from C/C++ code. Use the generated `mwdg.h` header for proper interface declaration.
 
 # Usage
 
@@ -28,11 +25,11 @@ mwdg = "0.3"
 
 To use in C/C++ projects, see info below.
 
-## Build static library
+## Build workspace
 
 ```
 # Build for ARMv7-M FP
-cargo rustc -p mwdg-ffi --target thumbv7em-none-eabihf --features "pack"
+cargo build --workspace --target thumbv7em-none-eabihf
 ```
 
 The `target/thumbv7em-none-eabihf/release` will contain the `libmwdg_ffi.rlib` that can be renamed into the
