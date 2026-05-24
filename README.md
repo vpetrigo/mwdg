@@ -32,7 +32,7 @@ To use in C/C++ projects, see info below.
 
 ```
 # Build for ARMv7-M FP
-cargo rustc --target thumbv7em-none-eabihf --features "pack" -- --crate-type staticlib
+cargo rustc -p mwdg-ffi --target thumbv7em-none-eabihf --features "pack"
 ```
 
 The `target/thumbv7em-none-eabihf/release` will contain the `libmwdg.rlib` that can be renamed into the

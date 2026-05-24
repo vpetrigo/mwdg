@@ -1,19 +1,12 @@
-[package]
-name = "mwdg"
-version = "0.2.0"
-edition = "2024"
-description = "Micro-watchdog library for embedded RTOS systems with C FFI"
-repository = "https://github.com/vpetrigo/mwdg"
-categories = ["no-std", "embedded"]
-keywords = ["watchdog", "wdg", "wdt", "watchdog-timer", "ffi"]
-license = "MIT OR Apache-2.0"
-
-exclude = [
-    ".*",
+[workspace]
+members = [
+    "mwdg",
+    "mwdg-ffi",
 ]
+resolver = "3"
 
-[features]
-pack = []
-
-[build-dependencies]
-cbindgen = "~0.29"
+[workspace.package]
+version = "0.3.0"
+license = "MIT OR Apache-2.0"
+authors = ["Vladimir Petrigo <vladimir.petrigo@gmail.com>"]
+repository = "https://github.com/vpetrigo/mwdg"

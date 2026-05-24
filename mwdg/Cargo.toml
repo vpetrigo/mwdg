@@ -1,0 +1,15 @@
+[package]
+name = "mwdg"
+edition = "2024"
+description = "Micro-watchdog library for embedded RTOS/async systems"
+categories = ["no-std", "embedded"]
+keywords = ["watchdog", "wdg", "wdt", "watchdog-timer"]
+
+repository.workspace = true
+version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+exclude = [
+    ".*",
+]
